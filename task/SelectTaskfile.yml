@@ -1,0 +1,55 @@
+version: "3"
+
+tasks:
+  default:
+    silent: true
+    vars:
+      COLON:
+        sh: >-
+          tmp=$(task -l ^| peco);
+          if [ "${tmp:0:2}" = "* " ]; then
+            tmp=${tmp:2} # `*` が `echo *` とパースされるのを防ぐ
+            list=(${tmp/,/ });
+            echo ${list[0]};
+          fi
+      TASKNAME:
+        sh: tmp={{.COLON}}; echo "${tmp:0:-1}"
+    cmds:
+      - cmd /c "cls" # peco の残像が残る場合の対策
+      - >-
+        if [ "{{.COLON}}" != "{{.TASKNAME}}:" ]; then
+          echo Please choose task.;
+          exit 0;
+        fi;
+        name={{.TASKNAME}};
+        read -p "[$name] is selected. Do you want to continue ? [y/N]: " str;
+        yn=${str:0:-1};
+        if [ "$yn" != "y" ] && [ "$yn" != "Y" ]; then
+          echo [$name] is canceled.;
+          exit 0;
+        fi;
+        if [[ $name =~ ^.*:BRANCH:.*$ ]]; then
+          read -p "[$name] requires ticket number. Please input numbers: " str;
+          code=${str:0:-1};
+          if [[ $code =~ ^[0-9]+$ ]]; then
+            args=" -- $code";
+          else
+            echo Invalid ticket number: [$code].;
+            exit 1;
+          fi;
+        elif [[ $name =~ ^common:VERSION:bumpup(-dev)?$ ]]; then
+          read -p "[$name] requires version like XX.YY(.Z). Please input: " str;
+          ver=${str:0:-1};
+          if [[ $ver =~ ^[0-9]{2}\.[0-9]{2}(\.[0-9]{1,})?$ ]]; then
+            args=" -- $ver";
+          else
+            echo Invalid version number: [$ver].;
+            exit 1;
+          fi;
+        fi;
+        if [ "{{.CLI_ARGS}}" = "dry" ]; then
+          runmode=" --dry";
+        else
+          runmode=" --silent";
+        fi;
+        task {{.TASKNAME}}$runmode$args;

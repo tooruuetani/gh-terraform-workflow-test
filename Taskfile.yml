@@ -1,0 +1,33 @@
+version: "3"
+
+includes:
+  PR: ./task/PRTaskfile.yml
+  SELECT: ./task/SelectTaskfile.yml
+
+tasks:
+  default:
+    cmds:
+      - task: SELECT:default
+
+  common:PR:to_main:
+    desc: Create pull-request to main.
+    cmds:
+      - task: PR:to_main
+
+  dev:PR:to_release_account:
+    desc: Create pull-request for deploying account to dev.
+    cmds:
+      - task: PR:to_release_account
+        vars: { STAGE: "dev", SUBSYSTEM: "account" }
+
+  stg:PR:to_release_account:
+    desc: Create pull-request for deploying account to stg.
+    cmds:
+      - task: PR:to_release_account
+        vars: { STAGE: "stg", SUBSYSTEM: "account" }
+
+  prod:PR:to_release_account:
+    desc: Create pull-request for deploying account to prod.
+    cmds:
+      - task: PR:to_release_account
+        vars: { STAGE: "prod", SUBSYSTEM: "account" }
