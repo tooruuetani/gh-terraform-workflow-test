@@ -1,0 +1,65 @@
+{
+  /*common*/
+  "editor.defaultFormatter": null,
+  "editor.detectIndentation": true,
+  "editor.formatOnPaste": true,
+  "editor.formatOnSave": true,
+  "editor.insertSpaces": true,
+  "editor.renderWhitespace": "all",
+  "editor.rulers": [
+    88,
+    119,
+  ],
+  "editor.tabSize": 4,
+  "files.exclude": {
+    "**/.coverage": true,
+    "**/.DS_Store": true,
+    "**/.git": true,
+    "**/.mypy_cache": true,
+    "**/.pytest_cache": true,
+    "**/.ruff_cache": true,
+    "**/.serverless": true,
+    "**/.terraform": true,
+    "**/.venv": true,
+    "**/__pycache__": true,
+    "**/node_modules": true,
+  },
+  "files.trimTrailingWhitespace": true,
+  /*yaml*/
+  "yaml.format.printWidth": 119,
+  "yaml.schemas": {
+    "https://json.schemastore.org/github-action.json": [
+      ".github/actions/**/*.yml",
+    ],
+    "https://json.schemastore.org/github-workflow.json": [
+      ".github/workflows/*.yml",
+    ],
+  },
+  "[github-actions-workflow]": {
+    "editor.defaultFormatter": "github.vscode-github-actions",
+  },
+  "[json][jsonc]": {
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "vscode.json-language-features",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
+  },
+  "[terraform]": {
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "files.insertFinalNewline": true,
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
+  },
+  "[terraform-vars]": {
+    "editor.formatOnPaste": true,
+    "editor.formatOnSave": true,
+    "files.insertFinalNewline": true,
+    "editor.defaultFormatter": "hashicorp.terraform",
+    "files.trimFinalNewlines": true,
+    "files.trimTrailingWhitespace": true,
+  },
+}

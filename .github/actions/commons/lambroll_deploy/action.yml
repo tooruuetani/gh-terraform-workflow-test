@@ -1,0 +1,57 @@
+name: Run lambroll deploy
+description: |
+  Lambroll で function_names に指定された AWS Lambda 関数をデプロイします。
+inputs:
+  aws_region:
+    description: "The AWS region"
+    default: "ap-northeast-1"
+  aws_role:
+    description: "The AWS role ARN"
+    default: ""
+  dir:
+    description: "Working directory for lambroll"
+    required: true
+  function_names:
+    description: "Names of the lambda function"
+    required: true
+  lambroll_alias:
+    description: "Alias of the lambda function"
+    required: true
+  lambroll_envfile:
+    description: "Environment file for lambroll"
+    required: true
+  lambroll_keep_versions:
+    description: "Keep version quantity of the lambda function"
+    default: "5"
+  tfstate_url:
+    description: "URL of the tfstate file"
+    required: true
+  version:
+    description: "Version of lambroll"
+    default: "v0.14.7"
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ inputs.aws_role != '' }}
+      with:
+        role-to-assume: ${{ inputs.aws_role }}
+        aws-region: ${{ inputs.aws_region }}
+    - name: Install lambroll
+      uses: fujiwara/lambroll@v0
+      with:
+        version: ${{ inputs.version }}
+    - name: Run lambroll deploy
+      working-directory: ${{ inputs.dir }}
+      shell: bash
+      env:
+        ALIAS: ${{ inputs.lambroll_alias }}
+        ENVFILE: ${{ inputs.lambroll_envfile }}
+        QUANTITY: ${{ inputs.lambroll_keep_versions }}
+        TFSTATE: ${{ inputs.tfstate_url }}
+      run: |
+        for i in ${{ inputs.function_names }}
+        do
+          lambroll deploy --function $i.json --alias=$ALIAS --keep-versions=$QUANTITY --envfile=$ENVFILE --tfstate=$TFSTATE
+        done

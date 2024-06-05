@@ -1,0 +1,32 @@
+name: "Get context to merge to main"
+description: |
+  現在実行中JOBのコンテキスト(SHA)を取得します。
+outputs:
+  sha:
+    description: "SHA"
+    value: ${{ steps.get-sha.outputs.sha }}
+  stage:
+    description: "Stage"
+    value: "dev"
+  version:
+    description: "Version"
+    value: ${{ steps.get-version.outputs.version }}
+runs:
+  using: "composite"
+  steps:
+    - name: Get SHA
+      id: get-sha
+      run: |
+        echo [$GITHUB_SHA] is selected.
+        SHORT_SHA=$(echo $GITHUB_SHA | cut -c -7)
+        echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo sha=[$SHORT_SHA]
+      shell: bash
+    - name: Get version from VERSION
+      id: get-version
+      run: |
+        VERSION=$(head -n 1 VERSION)
+        VERSION=`echo ${VERSION} | sed -e "s/[\r\n]\+//g"`
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo version=[$VERSION]
+      shell: bash

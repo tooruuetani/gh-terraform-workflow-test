@@ -1,0 +1,50 @@
+name: "Run terraform destroy"
+description: "Run terraform destroy"
+inputs:
+  args_destroy:
+    description: "Arguments for terraform destroy"
+    default: ""
+  aws_region:
+    description: "The AWS region"
+    default: "ap-northeast-1"
+  aws_role:
+    description: "The AWS role ARN"
+    default: ""
+  dir:
+    description: "Working directory for terraform"
+  tf_bucket:
+    description: "Terraform state bucket"
+    required: true
+  tfstate_name:
+    description: "Terraform state file name"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ inputs.aws_role != '' }}
+      with:
+        role-to-assume: ${{ inputs.aws_role }}
+        aws-region: ${{ inputs.aws_region }}
+    - name: Check if tfstate exist
+      id: tfstate
+      continue-on-error: true
+      run: |
+        S3PATH=s3://${{ inputs.tf_bucket }}/${{ inputs.tfstate_name }}
+        if aws s3 ls $S3PATH; then
+          EXISTS=true
+        else
+          EXISTS=false
+        fi
+        echo "exists=$EXISTS" >> $GITHUB_OUTPUT
+        echo tfstate[$S3PATH] exists: $EXISTS
+      shell: bash
+    - name: Terraform destroy
+      if: ${{ steps.tfstate.outputs.exists == 'true' }}
+      run: terraform destroy -auto-approve ${{ inputs.args_destroy }}
+      working-directory: ${{ inputs.dir }}
+      shell: bash
+    - name: Delete Terraform tfstate file
+      if: ${{ steps.tfstate.outputs.exists == 'true' }}
+      run: aws s3 rm s3://${{ inputs.tf_bucket }}/${{ inputs.tfstate_name }}
+      shell: bash

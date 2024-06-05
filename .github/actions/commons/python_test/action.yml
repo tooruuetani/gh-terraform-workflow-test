@@ -1,0 +1,41 @@
+name: "Run pytest, then comment to PR"
+description: |
+  Poetry を使用してテストを実行し、テスト結果をPRにコメントします。
+inputs:
+  dir:
+    description: "Working directory for installation"
+    required: true
+  need_comment:
+    description: "Whether to comment the result"
+    default: "true"
+runs:
+  using: "composite"
+  steps:
+    - name: Check by pytest
+      id: pytest
+      continue-on-error: true # テストに失敗してもPRにコメントするため、エラーを無視する
+      env:
+        PYTHONPATH: src
+      run: |
+        set -o pipefail
+        poetry run pytest --cov=src --cov-branch --cov-report=term-missing:skip-covered --junitxml=pytest.xml tests | tee pytest-coverage.txt
+      shell: bash
+      working-directory: ${{ inputs.dir }}
+    - name: Comment coverage on Pull-Request
+      if: ${{ inputs.need_comment == 'true' }}
+      uses: MishaKav/pytest-coverage-comment@main
+      with:
+        title: Coverage detail
+        badge-title: Coverage
+        coverage-path-prefix: ./${{ inputs.dir }}/
+        create-new-comment: true
+        pytest-coverage-path: ${{ inputs.dir }}/pytest-coverage.txt
+        junitxml-path: ${{ inputs.dir }}/pytest.xml
+        junitxml-title: Coverage for "${{ inputs.dir }}"
+    - name: Error Handling
+      if: ${{ steps.pytest.outcome == 'failure' }}
+      run: |
+        echo "Error handling"
+        echo ${{ steps.pytest.outcome }}
+        exit 1
+      shell: bash

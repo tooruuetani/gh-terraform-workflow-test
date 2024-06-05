@@ -1,0 +1,47 @@
+name: "Tagging docker image"
+description: |
+  tag_origin のイメージに対して、 tag_release という別タグを付与します。
+inputs:
+  aws_region:
+    description: "The AWS region"
+    default: "ap-northeast-1"
+  aws_role:
+    description: "The AWS role ARN"
+    required: true
+  repository_name:
+    description: "Repository name"
+  tag_origin:
+    description: "Tag of the image"
+    required: true
+  tag_release:
+    description: "Tag of the image"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ inputs.aws_role != '' }}
+      with:
+        role-to-assume: ${{ inputs.aws_role }}
+        aws-region: ${{ inputs.aws_region }}
+    - name: Retrieve digest from ECR
+      id: get-digest
+      env:
+        REPO: ${{ inputs.repository_name }}
+        TAG: ${{ inputs.tag_origin }}
+      run: |
+        set -o pipefail
+        DIGEST=`aws ecr describe-images --repository-name $REPO --image-ids imageTag=$TAG | jq -r ".imageDetails[].imageDigest"`
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        echo "digest=[$DIGEST]"
+      shell: bash
+    - name: Tag to docker image
+      env:
+        DIGEST: ${{ steps.get-digest.outputs.digest }}
+        REPO: ${{ inputs.repository_name }}
+        TAG: ${{ inputs.tag_release }}
+      run: |
+        set -o pipefail
+        MANIFEST=$(aws ecr batch-get-image --repository-name $REPO --image-ids "imageDigest=$DIGEST" --output json | jq -r -j ".images[0].imageManifest")
+        aws ecr put-image --repository-name $REPO --image-tag $TAG --image-manifest "$MANIFEST"
+      shell: bash

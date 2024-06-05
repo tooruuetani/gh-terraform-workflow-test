@@ -1,0 +1,17 @@
+name: Comment preview start
+description: "Comment preview start"
+inputs:
+  service_name:
+    description: "Service name"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Comment
+      uses: ./.github/actions/commons/comment
+      env:
+        URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        ACTOR: ${{ github.actor }}
+        NAME: ${{ inputs.service_name }}
+      with:
+        message: "@${{ env.ACTOR }} Deploying preview ${{ env.NAME }} has accepted.\nTo confirm the progress, see ${{ env.URL }}"

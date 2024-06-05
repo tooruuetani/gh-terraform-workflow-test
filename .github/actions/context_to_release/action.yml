@@ -1,0 +1,47 @@
+name: "Get SHA(short)"
+description: "Get SHA(short) from head branch name"
+outputs:
+  sha:
+    description: "SHA from git commit hash(short/7digit)"
+    value: ${{ steps.get_sha.outputs.sha }}
+  stage:
+    description: "Stage"
+    value: ${{ steps.get_sha.outputs.stage }}
+  version:
+    description: "Version"
+    value: ${{ steps.get-version.outputs.version }}
+runs:
+  using: "composite"
+  steps:
+    - name: Get SHA
+      id: get_sha
+      env:
+        PR_BASE: ${{ github.head_ref }}
+      run: |
+        if [[ $PR_BASE =~ ^deploy/.+/(dev|stg|prod)/.+$ ]]; then
+          echo [$PR_BASE] is selected.
+          SHORT_SHA=$(echo $PR_BASE | cut -d'/' -f2)
+        else
+          echo [$PR_BASE] is not selected.
+          exit 1
+        fi;
+        if [[ $PR_BASE =~ ^deploy/.+/stg/.+$ ]]; then
+          echo "stage=stg" >> $GITHUB_OUTPUT
+        elif [[ $PR_BASE =~ ^deploy/.+/prod/.+$ ]]; then
+          echo "stage=prod" >> $GITHUB_OUTPUT
+          echo stage=[prod]
+        else
+          echo "stage=dev" >> $GITHUB_OUTPUT
+          echo stage=[dev]
+        fi;
+        echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo sha=[$SHORT_SHA]
+      shell: bash
+    - name: Get version from VERSION
+      id: get-version
+      run: |
+        VERSION=$(head -n 1 VERSION)
+        VERSION=`echo ${VERSION} | sed -e "s/[\r\n]\+//g"`
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo version=[$VERSION]
+      shell: bash

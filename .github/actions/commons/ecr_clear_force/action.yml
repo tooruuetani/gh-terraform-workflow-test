@@ -1,0 +1,29 @@
+name: Remove resource and all images from ECR repository
+description: |
+  ECRリポジトリを強制的に削除します。
+inputs:
+  aws_region:
+    description: "The AWS region"
+    default: "ap-northeast-1"
+  aws_role:
+    description: "The AWS role ARN"
+    default: ""
+  repository_name:
+    description: "The name of the ECR repository"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ inputs.aws_role != '' }}
+      with:
+        role-to-assume: ${{ inputs.aws_role }}
+        aws-region: ${{ inputs.aws_region }}
+    - name: Remove resource and all images
+      shell: bash
+      run: | # リポジトリがない場合などエラーが発生しても後続に続けるため if 文で処理
+        if aws ecr delete-repository --repository-name ${{ inputs.repository_name }} --force; then
+          echo "Succeeded to remove resource and all images from ECR repository"
+        else
+          echo "Failed to remove resource and all images from ECR repository"
+        fi

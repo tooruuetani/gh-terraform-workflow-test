@@ -1,0 +1,57 @@
+name: "Install Python runtime"
+description: |
+  Python をインストールし、Poetry を使用して依存ライブラリをインストールします。
+inputs:
+  dir:
+    description: "Working directory for installation"
+    required: true
+  version:
+    description: "Python version"
+    default: "3.11"
+  version_poetry:
+    description: "Poetry version"
+    default: "1.8.2"
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.version }}
+        architecture: "x64"
+    - name: Save Python path
+      # 仮想環境を作成したときのPythonバージョンを取得するために実行
+      # マイナーバージョンが異なると仮想環境が壊れるため、バージョンをキャッシュキーに含める
+      run: which python3 > python3_path.txt
+      shell: bash
+      working-directory: ${{ inputs.dir }}
+    - name: Specify cache key
+      id: cache_prepare
+      run: |
+        HASH=${{ hashFiles('**/poetry.lock', '**/python3_path.txt') }}
+        echo "hash=$HASH" >> $GITHUB_OUTPUT
+      shell: bash
+      working-directory: ${{ inputs.dir }}
+    - name: Install Poetry
+      if: steps.cache.outputs.cache-hit != 'true'
+      uses: snok/install-poetry@v1
+      with:
+        version: ${{ inputs.version_poetry }}
+        virtualenvs-create: true
+        virtualenvs-in-project: true
+        virtualenvs-path: "${{ inputs.dir }}/.venv"
+        installer-parallel: true
+    - name: Cache venv dependencies
+      uses: actions/cache@v4
+      id: cache
+      with:
+        path: "${{ inputs.dir }}/.venv"
+        key: "${{ runner.os }}-python-venv-${{ steps.cache_prepare.outputs.hash }}"
+        restore-keys: ${{ runner.os }}-python-venv-"
+    - name: Echo cache result
+      run: echo "Cache hit=${{ steps.cache.outputs.cache-hit }}"
+      shell: bash
+    - name: Install dependencies
+      if: steps.cache.outputs.cache-hit != 'true'
+      run: poetry install --no-root
+      shell: bash
+      working-directory: ${{ inputs.dir }}

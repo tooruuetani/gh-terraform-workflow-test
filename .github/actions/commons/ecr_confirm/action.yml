@@ -1,0 +1,39 @@
+name: Confirm image in ECR repository
+description: |
+  tag というタグのイメージが ECR リポジトリに存在する場合、そのダイジェストを出力します。
+inputs:
+  aws_region:
+    description: "The AWS region"
+    default: "ap-northeast-1"
+  aws_role:
+    description: "The AWS role ARN"
+    required: true
+  repository_name:
+    description: "The name of the ECR repository"
+    required: true
+  tag:
+    description: "The tag of the ECR repository"
+    required: true
+outputs:
+  digest:
+    description: "The digest of the image in the ECR repository"
+    value: ${{ steps.get_digest.outputs.digest }}
+runs:
+  using: "composite"
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      if: ${{ inputs.aws_role != '' }}
+      with:
+        role-to-assume: ${{ inputs.aws_role }}
+        aws-region: ${{ inputs.aws_region }}
+    - name: Retrieve digest from ECR
+      id: get_digest
+      env:
+        REPO: ${{ inputs.repository_name }}
+        TAG: ${{ inputs.tag }}
+      run: |
+        set -o pipefail
+        DIGEST=`aws ecr describe-images --repository-name $REPO --image-ids imageTag=$TAG | jq -r ".imageDetails[].imageDigest"`
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+        echo "digest=[$DIGEST]"
+      shell: bash

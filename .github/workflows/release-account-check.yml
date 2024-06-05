@@ -1,0 +1,120 @@
+name: release-account-check
+run-name: Confirm account api image for `${{ github.base_ref }}`
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - release/*/account
+
+env:
+  AWS_REGION: ap-northeast-1
+  AWS_ROLE_ARN_STG: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  AWS_ROLE_ARN_PROD: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  DIR_ACCOUNT_TERRAFORM_STG: terraform/envs/stg/account
+  DIR_ACCOUNT_TERRAFORM_PROD: terraform/envs/prod/account
+  REPO_ACCOUNT: rpf-account-lambda
+
+jobs:
+  changes:
+    if: startsWith(github.base_ref, 'release/stg/account') || startsWith(github.base_ref, 'release/prod/account')
+    runs-on: ubuntu-latest
+    outputs:
+      account_open_api: ${{ steps.filter.outputs.account_open_api }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/changes
+        id: filter
+
+  account_terraform_plan_stg:
+    needs:
+      - changes
+    if: startsWith(github.base_ref, 'release/stg/account') && needs.changes.outputs.account_open_api == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
+          label: "stg/account"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  confirm_stg:
+    if: startsWith(github.base_ref, 'release/stg/account')
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Retrieve SHA from head branch name
+        uses: ./.github/actions/context_to_release
+        id: context
+      - name: Confirm image
+        uses: ./.github/actions/commons/ecr_confirm
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          repository_name: ${{ env.REPO_ACCOUNT }}
+          tag: ${{ steps.context.outputs.sha }}
+
+  account_terraform_plan_prod:
+    needs:
+      - changes
+    if: startsWith(github.base_ref, 'release/prod/account') && needs.changes.outputs.account_open_api == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
+          label: "prod/account"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  confirm_prod:
+    if: startsWith(github.base_ref, 'release/prod/account')
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Retrieve SHA from head branch name
+        uses: ./.github/actions/context_to_release
+        id: context
+      - name: Confirm image
+        uses: ./.github/actions/commons/ecr_confirm
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          repository_name: ${{ env.REPO_ACCOUNT }}
+          tag: ${{ steps.context.outputs.sha }}
+
+  confirm_image_pushed:
+    needs:
+      - account_terraform_plan_stg
+      - confirm_stg
+      - account_terraform_plan_prod
+      - confirm_prod
+    if: failure() == false && contains(needs.*.result, 'cancelled') == false
+    runs-on: ubuntu-latest
+    steps:
+      - run: exit -1
+        name: Fails if no confirmed image
+        if: contains(needs.*.result, 'success') == false
+      - run: echo "$json"
+        env:
+          json: ${{ toJSON(needs) }}

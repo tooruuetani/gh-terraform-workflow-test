@@ -1,0 +1,403 @@
+name: common-check
+run-name: Common check codes for "${{ github.head_ref }}@${{ github.event.pull_request.head.sha }}"
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, synchronize, reopened]
+
+env:
+  AWS_REGION: ap-northeast-1
+  AWS_ROLE_ARN_DEV: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  AWS_ROLE_ARN_STG: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  AWS_ROLE_ARN_PROD: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  DIR_COMMON_TERRAFORM_DEV: terraform/envs/dev/common
+  DIR_COMMON_TERRAFORM_STG: terraform/envs/stg/common
+  DIR_COMMON_TERRAFORM_PROD: terraform/envs/prod/common
+  DIR_ACCOUNT_BACKEND: account/backend
+  DIR_ACCOUNT_FRONTEND: account/frontend
+  DIR_ACCOUNT_TERRAFORM_DEV: terraform/envs/dev/account
+  DIR_ACCOUNT_TERRAFORM_STG: terraform/envs/stg/account
+  DIR_ACCOUNT_TERRAFORM_PROD: terraform/envs/prod/account
+  DIR_LOG: log
+  DIR_LOG_BACKEND: log/backend
+  DIR_LOG_TERRAFORM_DEV: terraform/envs/dev/log
+  DIR_LOG_TERRAFORM_STG: terraform/envs/stg/log
+  DIR_LOG_TERRAFORM_PROD: terraform/envs/prod/log
+  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf-account
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      common_terraform_dev: ${{ steps.filter.outputs.common_terraform_dev }}
+      common_terraform_stg: ${{ steps.filter.outputs.common_terraform_stg }}
+      common_terraform_prod: ${{ steps.filter.outputs.common_terraform_prod }}
+      account_terraform_dev: ${{ steps.filter.outputs.account_terraform_dev }}
+      account_terraform_stg: ${{ steps.filter.outputs.account_terraform_stg }}
+      account_terraform_prod: ${{ steps.filter.outputs.account_terraform_prod }}
+      account_backend: ${{ steps.filter.outputs.account_backend }}
+      account_frontend: ${{ steps.filter.outputs.account_frontend }}
+      log_terraform_dev: ${{ steps.filter.outputs.log_terraform_dev }}
+      log_terraform_stg: ${{ steps.filter.outputs.log_terraform_stg }}
+      log_terraform_prod: ${{ steps.filter.outputs.log_terraform_prod }}
+      log_backend: ${{ steps.filter.outputs.log_backend }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/changes
+        id: filter
+
+  account_frontend_test:
+    needs: [changes]
+    if: needs.changes.outputs.account_frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/node_install
+        with:
+          dir: ${{ env.DIR_ACCOUNT_FRONTEND }}
+          version: "18"
+      - uses: ./.github/actions/commons/node_test
+        with:
+          dir: ${{ env.DIR_ACCOUNT_FRONTEND }}
+          need_comment: "true"
+
+  account_frontend_lint:
+    needs: [changes]
+    if: needs.changes.outputs.account_frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/node_install
+        with:
+          dir: ${{ env.DIR_ACCOUNT_FRONTEND }}
+          version: "18"
+      - uses: ./.github/actions/commons/node_lint
+        with:
+          dir: ${{ env.DIR_ACCOUNT_FRONTEND }}
+
+  account_backend_lint:
+    needs: [changes]
+    if: needs.changes.outputs.account_backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/python_install
+        with:
+          dir: ${{ env.DIR_ACCOUNT_BACKEND }}
+          version: "3.11"
+          version_poetry: "1.8.2"
+      - uses: ./.github/actions/commons/python_lint
+        with:
+          dir: ${{ env.DIR_ACCOUNT_BACKEND }}
+
+  account_backend_test:
+    needs: [changes]
+    if: needs.changes.outputs.account_backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/python_install
+        with:
+          dir: ${{ env.DIR_ACCOUNT_BACKEND }}
+          version: "3.11"
+          version_poetry: "1.8.2"
+      - uses: ./.github/actions/commons/python_test
+        with:
+          dir: ${{ env.DIR_ACCOUNT_BACKEND }}
+          need_comment: "true"
+
+  log_backend_lint:
+    needs: [changes]
+    if: needs.changes.outputs.log_backend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/python_install
+        with:
+          dir: ${{ env.DIR_LOG }}
+          version: "3.11"
+          version_poetry: "1.8.2"
+      - uses: ./.github/actions/commons/python_lint
+        with:
+          dir: ${{ env.DIR_LOG }}
+          targets: "backend/src backend/tests"
+
+  log_backend_test:
+    needs: [changes]
+    if: needs.changes.outputs.log_backend == 'true'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: log
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/python_install
+        with:
+          dir: ${{ env.DIR_LOG }}
+          version: "3.11"
+          version_poetry: "1.8.2"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.DIR_LOG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Check by pytest on backend
+        id: pytest
+        continue-on-error: true
+        env:
+          AWS_ACCESS_KEY_ID: "dummy" # AWS アクセス情報がダミーでも必要なので定義。実際にはアクセスしない。
+          AWS_SECRET_ACCESS_KEY: "dummy"
+          AWS_SECURITY_TOKEN: "dummy"
+          AWS_SESSION_TOKEN: "dummy"
+        run: |
+          set -o pipefail
+          cd ..
+          docker compose up -d --wait || echo $?
+          cd backend
+          poetry run pytest --cov=src --cov-branch --cov-report=term-missing:skip-covered --junitxml=pytest.xml tests | tee pytest-coverage.txt
+          cd ..
+          docker compose down
+        working-directory: ${{ env.DIR_LOG_BACKEND }}
+      - name: Comment coverage on Pull-Request
+        uses: MishaKav/pytest-coverage-comment@main
+        with:
+          title: Coverage detail
+          badge-title: Coverage
+          coverage-path-prefix: ${{ env.DIR_LOG_BACKEND }}
+          create-new-comment: true
+          pytest-coverage-path: ${{ env.DIR_LOG_BACKEND }}/pytest-coverage.txt
+          junitxml-path: ${{ env.DIR_LOG_BACKEND }}/pytest.xml
+          junitxml-title: Coverage for "${{ env.DIR_LOG_BACKEND }}"
+      - name: Error Handling
+        if: ${{ steps.pytest.outcome == 'failure' }}
+        run: |
+          echo "Error handling"
+          echo ${{ steps.pytest.outcome }}
+          exit 1
+
+  common_terraform_plan_dev:
+    needs: [changes]
+    if: needs.changes.outputs.common_terraform_dev == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_COMMON_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_COMMON_TERRAFORM_DEV }}
+          label: "dev/common"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  common_terraform_plan_stg:
+    needs: [changes]
+    if: needs.changes.outputs.common_terraform_stg == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_COMMON_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_COMMON_TERRAFORM_STG }}
+          label: "stg/common"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  common_terraform_plan_prod:
+    needs: [changes]
+    if: needs.changes.outputs.common_terraform_prod == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_COMMON_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_COMMON_TERRAFORM_PROD }}
+          label: "prod/common"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_plan_dev:
+    needs:
+      - changes
+      - common_terraform_plan_dev
+    if: ${{ !failure() && needs.changes.outputs.account_terraform_dev == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
+          label: "dev/account"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_plan_stg:
+    needs:
+      - changes
+      - common_terraform_plan_stg
+    if: ${{ !failure() && needs.changes.outputs.account_terraform_stg == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
+          label: "stg/account"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_plan_prod:
+    needs:
+      - changes
+      - common_terraform_plan_prod
+    if: ${{ !failure() && needs.changes.outputs.account_terraform_prod == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
+          label: "prod/account"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_terraform_plan_dev:
+    needs:
+      - changes
+      - common_terraform_plan_dev
+    if: ${{ !failure() && needs.changes.outputs.log_terraform_dev == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_LOG_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_LOG_TERRAFORM_DEV }}
+          label: "dev/log"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_terraform_plan_stg:
+    needs:
+      - changes
+      - common_terraform_plan_stg
+    if: ${{ !failure() && needs.changes.outputs.log_terraform_stg == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_LOG_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_LOG_TERRAFORM_STG }}
+          label: "stg/log"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_terraform_plan_prod:
+    needs:
+      - changes
+      - common_terraform_plan_prod
+    if: ${{ !failure() && needs.changes.outputs.log_terraform_prod == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_LOG_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_plan
+        with:
+          dir: ${{ env.DIR_LOG_TERRAFORM_PROD }}
+          label: "prod/log"
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  check_code:
+    needs:
+      - common_terraform_plan_dev
+      - common_terraform_plan_stg
+      - common_terraform_plan_prod
+      - account_terraform_plan_dev
+      - account_terraform_plan_stg
+      - account_terraform_plan_prod
+      - account_backend_lint
+      - account_backend_test
+      - account_frontend_lint
+      - account_frontend_test
+      - log_terraform_plan_dev
+      - log_terraform_plan_stg
+      - log_terraform_plan_prod
+      - log_backend_lint
+      - log_backend_test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Force failure
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: echo "Failed or canceled" && exit 1
+      - run: echo "$json"
+        env:
+          json: ${{ toJSON(needs) }}

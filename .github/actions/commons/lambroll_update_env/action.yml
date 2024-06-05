@@ -1,0 +1,31 @@
+name: "Update lambda function env values"
+description: |
+  Lambroll が使用する .env ファイルを更新します。
+inputs:
+  dir:
+    description: "Working directory to execute lambroll"
+  repository_name:
+    description: "Repository name"
+  stage:
+    description: "Stage for deployment"
+  tag:
+    description: "Specify docker image"
+  version:
+    description: "Version for deployment"
+    default: "latest"
+runs:
+  using: "composite"
+  steps:
+    - name: Replace env file
+      working-directory: ${{ inputs.dir }}
+      run: |
+        NEW_ENV=${{ inputs.stage }}.env
+        if [[ ${{ inputs.stage }} =~ ^feature[0-9]+ ]] ;
+        then
+          cp feature.env $NEW_ENV
+        fi
+        sed -i 's/$ECR_NAME/${{ inputs.repository_name }}/' $NEW_ENV
+        sed -i 's/$TAG/${{ inputs.tag }}/' $NEW_ENV
+        sed -i 's/$STAGE/${{ inputs.stage }}/' $NEW_ENV
+        sed -i 's/$VERSION/${{ inputs.version }}/' $NEW_ENV
+      shell: bash

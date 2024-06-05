@@ -1,0 +1,413 @@
+name: common-merge
+run-name: Common merge codes for "${{ github.head_ref }}@${{ github.event.pull_request.head.sha }}"
+on:
+  pull_request:
+    branches:
+      - main
+    types: [closed]
+
+env:
+  AWS_REGION: ap-northeast-1
+  AWS_ROLE_ARN_DEV: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  AWS_ROLE_ARN_STG: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  AWS_ROLE_ARN_PROD: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+  DIR_COMMON_TERRAFORM_DEV: terraform/envs/dev/common
+  DIR_COMMON_TERRAFORM_STG: terraform/envs/stg/common
+  DIR_COMMON_TERRAFORM_PROD: terraform/envs/prod/common
+  DIR_ACCOUNT: account
+  DIR_ACCOUNT_BACKEND: account/backend
+  DIR_ACCOUNT_FRONTEND: account/frontend
+  DIR_ACCOUNT_TERRAFORM_DEV: terraform/envs/dev/account
+  DIR_ACCOUNT_TERRAFORM_STG: terraform/envs/stg/account
+  DIR_ACCOUNT_TERRAFORM_PROD: terraform/envs/prod/account
+  DIR_LOG: log
+  DIR_LOG_BACKEND: log/backend
+  DIR_LOG_TERRAFORM_DEV: terraform/envs/dev/log
+  DIR_LOG_TERRAFORM_STG: terraform/envs/stg/log
+  DIR_LOG_TERRAFORM_PROD: terraform/envs/prod/log
+  REPO_ACCOUNT: rpf-account-lambda
+  REPO_LOG: rpf-log-lambda
+  TFSTATE_BUCKET_DEV: rpf-terraform-state-dev
+  TFSTATE_NAME_ACCOUNT: rpf-account.tfstate
+  TFSTATE_NAME_LOG: rpf-log.tfstate
+  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf-account
+
+jobs:
+  changes:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    outputs:
+      common_terraform_dev: ${{ steps.filter.outputs.common_terraform_dev }}
+      common_terraform_stg: ${{ steps.filter.outputs.common_terraform_stg }}
+      common_terraform_prod: ${{ steps.filter.outputs.common_terraform_prod }}
+      account_terraform_dev: ${{ steps.filter.outputs.account_terraform_dev }}
+      account_terraform_stg: ${{ steps.filter.outputs.account_terraform_stg }}
+      account_terraform_prod: ${{ steps.filter.outputs.account_terraform_prod }}
+      log_terraform_dev: ${{ steps.filter.outputs.log_terraform_dev }}
+      log_terraform_stg: ${{ steps.filter.outputs.log_terraform_stg }}
+      log_terraform_prod: ${{ steps.filter.outputs.log_terraform_prod }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/changes
+        id: filter
+
+  common_terraform_apply_dev:
+    needs: [changes]
+    if: needs.changes.outputs.common_terraform_dev == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_COMMON_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_COMMON_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  common_terraform_apply_stg:
+    needs: [changes]
+    if: needs.changes.outputs.common_terraform_stg == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_COMMON_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_COMMON_TERRAFORM_STG }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  common_terraform_apply_prod:
+    needs: [changes]
+    if: needs.changes.outputs.common_terraform_prod == 'true'
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_COMMON_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_COMMON_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_apply_dev:
+    needs:
+      - changes
+      - common_terraform_apply_dev
+    if: ${{ !failure() && needs.changes.outputs.account_terraform_dev == 'true' && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_apply_stg:
+    needs:
+      - changes
+      - common_terraform_apply_stg
+    if: ${{ !failure() && needs.changes.outputs.account_terraform_stg == 'true' && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_apply_prod:
+    needs:
+      - changes
+      - common_terraform_apply_prod
+    if: ${{ !failure() && needs.changes.outputs.account_terraform_prod == 'true' && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_backend_deploy_dev:
+    needs:
+      - changes
+      - account_terraform_apply_dev
+    if: ${{ !failure() && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/context_to_main
+        id: context
+      - uses: ./.github/actions/commons/docker_build
+        with:
+          dir: ${{ env.DIR_ACCOUNT }}
+          tag: ${{ steps.context.outputs.sha }}
+          test_commands: "pytest --cov=backend/src --cov-branch"
+      - uses: ./.github/actions/commons/ecr_upload
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          repository_name: ${{ env.REPO_ACCOUNT}}
+          tag_local: ${{ steps.context.outputs.sha }}
+          tag_remote: ${{ steps.context.outputs.sha }}
+      - uses: ./.github/actions/commons/lambroll_update_env
+        with:
+          dir: ${{env.DIR_ACCOUNT_BACKEND }}/lambroll
+          repository_name: ${{ env.REPO_ACCOUNT}}
+          stage: ${{ steps.context.outputs.stage }}
+          tag: ${{ steps.context.outputs.sha }}
+          version: "${{ steps.context.outputs.version }}-${{ steps.context.outputs.sha }}"
+      - uses: ./.github/actions/commons/lambroll_deploy
+        with:
+          dir: ${{ env.DIR_ACCOUNT_BACKEND }}/lambroll
+          function_names: "webapp"
+          lambroll_alias: ${{ steps.context.outputs.stage }}
+          lambroll_envfile: "${{ steps.context.outputs.stage }}.env"
+          tfstate_url: "s3://${{ env.TFSTATE_BUCKET_DEV }}/${{ env.TFSTATE_NAME_ACCOUNT }}"
+      - uses: ./.github/actions/commons/ecr_tagging
+        with:
+          repository_name: ${{ env.REPO_ACCOUNT }}
+          tag_origin: ${{ steps.context.outputs.sha }}
+          tag_release: ${{ steps.context.outputs.stage }}
+
+  account_frontend_deploy_dev:
+    needs:
+      - changes
+      - account_terraform_apply_dev
+    if: ${{ !failure() && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/context_to_main
+        id: context
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
+      - name: Get terraform output value
+        id: tf
+        working-directory: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
+        run: |
+          JSON=`terraform-bin output -json`
+          echo "cognito_client_id=`echo $JSON | jq -r .cognito_client_id.value`" >> $GITHUB_OUTPUT
+          echo "cognito_user_pool_id=`echo $JSON | jq -r .cognito_user_pool_id.value`" >> $GITHUB_OUTPUT
+          echo "rpf_account_api_url=`echo $JSON | jq -r .rpf_account_api_url.value`" >> $GITHUB_OUTPUT
+          echo "cloudfront_bucket=`echo $JSON | jq -r .rpf_account_cloudfront_bucket.value`" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=`echo $JSON | jq -r .rpf_account_cloudfront_id.value`" >> $GITHUB_OUTPUT
+      - name: Inject version
+        working-directory: ${{ env.DIR_ACCOUNT_FRONTEND }}
+        run: |
+          VERSION=${{ steps.context.outputs.version }}
+          VERSION_SHA=$VERSION-${{ steps.context.outputs.sha }}
+          echo VITE_VERSION_SHA=$VERSION_SHA>.env
+          echo VITE_AWS_REGION=${{ env.AWS_REGION }}>>.env
+          echo VITE_AWS_USER_POOL_ID=${{ steps.tf.outputs.cognito_user_pool_id }}>>.env
+          echo VITE_AWS_USER_WEB_CLIENT_ID=${{ steps.tf.outputs.cognito_client_id }}>>.env
+          echo VITE_RPF_ENDPOINT=`echo ${{ steps.tf.outputs.rpf_account_api_url }}`>>.env
+      - uses: ./.github/actions/commons/node_install
+        with:
+          dir: ${{ env.DIR_ACCOUNT_FRONTEND }}
+          version: "18"
+      - uses: ./.github/actions/commons/node_deploy
+        with:
+          dir: ${{ env.DIR_ACCOUNT_FRONTEND }}
+          dir_build_result: ${{ env.DIR_ACCOUNT_FRONTEND }}/dist
+          distribution_id: ${{ steps.tf.outputs.cloudfront_id }}
+          origin_bucket: ${{ steps.tf.outputs.cloudfront_bucket }}
+
+  log_terraform_apply_dev:
+    needs:
+      - changes
+      - common_terraform_apply_dev
+    if: ${{ !failure() && needs.changes.outputs.log_terraform_dev == 'true' && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          dir: ${{ env.DIR_LOG_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_LOG_TERRAFORM_DEV }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_terraform_apply_stg:
+    needs:
+      - changes
+      - common_terraform_apply_stg
+    if: ${{ !failure() && needs.changes.outputs.log_terraform_stg == 'true' && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+          dir: ${{ env.DIR_LOG_TERRAFORM_STG }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_LOG_TERRAFORM_STG }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_terraform_apply_prod:
+    needs:
+      - changes
+      - common_terraform_apply_prod
+    if: ${{ !failure() && needs.changes.outputs.log_terraform_prod == 'true' && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+          dir: ${{ env.DIR_LOG_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: ${{ env.DIR_LOG_TERRAFORM_PROD }}
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_backend_deploy_dev:
+    needs:
+      - changes
+      - log_terraform_apply_dev
+    if: ${{ !failure() && github.event.pull_request.merged == true }}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/context_to_main
+        id: context
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v5
+        with:
+          context: ${{ env.DIR_LOG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: test docker
+        run: |
+          docker compose up -d --wait
+          docker compose -f docker-compose.yml -f docker-compose-test.yml run --rm --entrypoint "pytest" log_app
+          docker compose -f docker-compose.yml -f docker-compose-test.yml down
+        working-directory: ${{ env.DIR_LOG }}
+      - uses: ./.github/actions/commons/ecr_upload
+        with:
+          aws_region: ${{ env.AWS_REGION }}
+          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
+          repository_name: ${{ env.REPO_LOG }}
+          tag_local: log_app
+          tag_remote: ${{ steps.context.outputs.sha }}
+      - uses: ./.github/actions/commons/lambroll_update_env
+        with:
+          dir: ${{env.DIR_LOG_BACKEND }}/lambroll
+          repository_name: ${{ env.REPO_LOG }}
+          stage: ${{ steps.context.outputs.stage }}
+          tag: ${{ steps.context.outputs.sha }}
+          version: "${{ steps.context.outputs.version }}-${{ steps.context.outputs.sha }}"
+      - uses: ./.github/actions/commons/lambroll_deploy
+        with:
+          dir: ${{ env.DIR_LOG_BACKEND }}/lambroll
+          function_names: "A01 A02 A03"
+          lambroll_alias: ${{ steps.context.outputs.stage }}
+          lambroll_envfile: "${{ steps.context.outputs.stage }}.env"
+          tfstate_url: "s3://${{ env.TFSTATE_BUCKET_DEV }}/${{ env.TFSTATE_NAME_LOG }}"
+      - uses: ./.github/actions/commons/ecr_tagging
+        with:
+          repository_name: ${{ env.REPO_LOG }}
+          tag_origin: ${{ steps.context.outputs.sha }}
+          tag_release: ${{ steps.context.outputs.stage }}
+
+  notify_failed:
+    needs:
+      - changes
+      - common_terraform_apply_dev
+      - common_terraform_apply_stg
+      - common_terraform_apply_prod
+      - account_terraform_apply_dev
+      - account_terraform_apply_stg
+      - account_terraform_apply_prod
+      - account_backend_deploy_dev
+      - account_frontend_deploy_dev
+      - log_terraform_apply_dev
+      - log_terraform_apply_stg
+      - log_terraform_apply_prod
+      - log_backend_deploy_dev
+    if: ${{ failure() && !cancelled() }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          ACTION_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          ACTOR: ${{ github.actor }}
+        with:
+          script: |
+            const { ACTOR } = process.env
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `@${{ env.ACTOR }} Merge task has failed.\nSee ${{ env.ACTION_URL }}`
+            })

@@ -1,0 +1,12 @@
+name: Comment destroy
+description: "Comment that terraform destroy has been executed"
+runs:
+  using: "composite"
+  steps:
+    - name: Comment
+      uses: ./.github/actions/commons/comment
+      env:
+        ACTION_URL: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        ACTOR: ${{ github.actor }}
+      with:
+        message: "@${{ env.ACTOR }} Request for destroying preview has failed.\nSee ${{ env.ACTION_URL }}"

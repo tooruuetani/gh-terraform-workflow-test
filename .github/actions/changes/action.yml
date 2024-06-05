@@ -1,0 +1,111 @@
+name: "Detect change files"
+description: "Detect change files"
+outputs:
+  common_terraform_dev:
+    description: "changes for common terraform files in dev"
+    value: ${{ steps.export.outputs.common_terraform_dev }}
+  common_terraform_stg:
+    description: "changes for common terraform files in stg"
+    value: ${{ steps.export.outputs.common_terraform_stg }}
+  common_terraform_prod:
+    description: "changes for common terraform files in prod"
+    value: ${{ steps.export.outputs.common_terraform_prod }}
+  account_open_api:
+    description: "changes for account open api files"
+    value: ${{ steps.export.outputs.account_open_api }}
+  account_terraform_dev:
+    description: "changes for account terraform files in dev"
+    value: ${{ steps.export.outputs.account_terraform_dev }}
+  account_terraform_stg:
+    description: "changes for account terraform files in stg"
+    value: ${{ steps.export.outputs.account_terraform_stg }}
+  account_terraform_prod:
+    description: "changes for account terraform files in prod"
+    value: ${{ steps.export.outputs.account_terraform_prod }}
+  account_backend:
+    description: "changes for account backend files"
+    value: ${{ steps.export.outputs.account_backend }}
+  account_frontend:
+    description: "changes for account frontend files"
+    value: ${{ steps.export.outputs.account_frontend }}
+  log_terraform_dev:
+    description: "changes for log terraform files in dev"
+    value: ${{ steps.export.outputs.log_terraform_dev }}
+  log_terraform_stg:
+    description: "changes for log terraform files in stg"
+    value: ${{ steps.export.outputs.log_terraform_stg }}
+  log_terraform_prod:
+    description: "changes for log terraform files in prod"
+    value: ${{ steps.export.outputs.log_terraform_prod }}
+  log_backend:
+    description: "changes for log backend files"
+    value: ${{ steps.export.outputs.log_backend }}
+runs:
+  using: composite
+  steps:
+    - name: Export change files
+      id: export
+      uses: dorny/paths-filter@v3
+      with:
+        filters: |
+          common_terraform_dev:
+            - 'terraform/envs/dev/common/**'
+            - 'terraform/modules/cognito/**'
+            - 'terraform/modules/ecr_replication/**'
+          common_terraform_stg:
+            - 'terraform/envs/stg/common/**'
+            - 'terraform/modules/cognito/**'
+            - 'terraform/modules/ecr_replication/**'
+          common_terraform_prod:
+            - 'terraform/envs/prod/common/**'
+            - 'terraform/modules/cognito/**'
+            - 'terraform/modules/ecr_replication/**'
+            - 'terraform/modules/route53/**'
+          account_open_api:
+            - 'account/document/webapi.yaml'
+          account_terraform_dev:
+            - 'account/document/webapi.yaml'
+            - 'terraform/envs/dev/account/**'
+            - 'terraform/modules/rpf_account/**'
+            - 'terraform/modules/dynamodb/**'
+          account_terraform_stg:
+            - 'terraform/envs/stg/account/**'
+            - 'terraform/modules/rpf_account/**'
+            - 'terraform/modules/dynamodb/**'
+          account_terraform_prod:
+            - 'terraform/envs/prod/account/**'
+            - 'terraform/modules/rpf_account/**'
+            - 'terraform/modules/dynamodb/**'
+          account_backend:
+            - 'account/pyproject.toml'
+            - 'account/poetry.lock'
+            - 'account/backend/lambroll/*.env'
+            - 'account/backend/src/*.py'
+            - 'account/backend/src/**/*.py'
+            - 'account/backend/tests/*.py'
+            - 'account/backend/tests/**/*.py'
+          account_frontend:
+            - 'account/frontend/public/**'
+            - 'account/frontend/src/**'
+            - 'account/frontend/tests/**'
+            - 'account/frontend/index.html'
+          log_backend:
+            - 'log/pyproject.toml'
+            - 'log/poetry.lock'
+            - 'log/backend/lambroll/*.env'
+            - 'log/backend/src/*.py'
+            - 'log/backend/src/**/*.py'
+            - 'log/backend/tests/*.py'
+            - 'log/backend/tests/**/*.py'
+          log_terraform_dev:
+            - 'terraform/envs/dev/log/**'
+            - 'terraform/modules/rpf_log/**'
+            - 'terraform/modules/ecr/**'
+          log_terraform_stg:
+            - 'terraform/envs/stg/log/**'
+            - 'terraform/modules/rpf_log/**'
+            - 'terraform/modules/ecr/**'
+          log_terraform_prod:
+            - 'terraform/envs/prod/log/**'
+            - 'terraform/modules/rpf_log/**'
+            - 'terraform/modules/ecr/**'

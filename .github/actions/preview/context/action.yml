@@ -1,0 +1,41 @@
+name: "Get SHA(short)"
+description: "Get SHA from HEAD or branch."
+outputs:
+  sha:
+    description: "SHA from git commit hash(short/7digit)"
+    value: ${{ steps.get-sha.outputs.sha }}
+  stage:
+    description: "Stage name from branch name"
+    value: ${{ steps.get-stage.outputs.stage }}
+  version:
+    description: "Version from VERSION file"
+    value: ${{ steps.get-version.outputs.version }}
+runs:
+  using: "composite"
+  steps:
+    - name: Get SHA # feature ブランチ先頭のコミット SHA を取得
+      id: get-sha
+      env:
+        HEAD_SHA: ${{ github.event.pull_request.head.sha }} # GITHUB_SHA だとマージコミットになるため使えない
+        PR_BASE: ${{ github.head_ref }}
+      run: |
+        echo PR_BASE=[$PR_BASE],HEAD_SHA=[$HEAD_SHA]
+        SHORT_SHA=$(echo $HEAD_SHA | cut -c -7)
+        echo "sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+        echo sha=[$SHORT_SHA]
+      shell: bash
+    - name: Get stage # feature ブランチ名から stage 名を取得（/を削除）
+      id: get-stage
+      env:
+        PR_HEAD: ${{ github.head_ref }}
+      run: |
+        STAGE=`echo ${PR_HEAD////}`
+        echo "stage=$STAGE" >> $GITHUB_OUTPUT
+      shell: bash
+    - name: Get version # VERSION ファイルからバージョンを取得
+      id: get-version
+      run: |
+        VERSION=$(head -n 1 VERSION)
+        VERSION=`echo ${VERSION} | sed -e "s/[\r\n]\+//g"`
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+      shell: bash

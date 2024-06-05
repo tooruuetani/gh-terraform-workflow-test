@@ -1,0 +1,21 @@
+name: "Run ruff"
+description: |
+  Poetry を使用して Ruff をインストールし、コードの静的解析を行います。
+inputs:
+  dir:
+    description: "Working directory for installation"
+    required: true
+  targets:
+    description: "Targets for ruff"
+    default: "src tests"
+runs:
+  using: "composite"
+  steps:
+    - name: Install dependencies
+      run: poetry add -D ruff
+      shell: bash
+      working-directory: ${{ inputs.dir }}
+    - name: Check by ruff
+      run: poetry run ruff check ${{ inputs.targets }}
+      shell: bash
+      working-directory: ${{ inputs.dir }}

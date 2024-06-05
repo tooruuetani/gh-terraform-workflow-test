@@ -1,0 +1,42 @@
+name: "Run vitest, then comment to PR"
+description: |
+  Vitest を使用してテストを実行し、テスト結果をPRにコメントします。
+inputs:
+  dir:
+    description: "Working directory for installation"
+    required: true
+  need_comment:
+    description: "Whether to comment the result"
+    default: "true"
+runs:
+  using: "composite"
+  steps:
+    - name: Check by vitest with coverage
+      id: test
+      continue-on-error: true # テストに失敗してもPRにコメントするため、エラーを無視する
+      # json-summary はコンソール出力に向いていないため、設定を変更している
+      run: |
+        sed -i 's/reporter: \["text"\],/reporter: ["text", "json-summary"],/' vite.config.ts
+        set -o pipefail
+        npm run coverage -- --no-color --reporter=junit --outputFile.junit=junit.xml | tee vitest-coverage.txt
+      working-directory: ${{ inputs.dir }}
+      shell: bash
+    - name: Comment coverage on Pull-Request
+      uses: MishaKav/jest-coverage-comment@main
+      if: ${{ inputs.need_comment == 'true' }}
+      with:
+        summary-title: Coverage for "${{ inputs.dir }}"
+        coverage-title: Coverage detail
+        coverage-summary-path: "${{ inputs.dir }}/coverage/coverage-summary.json"
+        badge-title: Coverage
+        coverage-path-prefix: "./${{ inputs.dir }}/"
+        create-new-comment: true
+        coverage-path: "${{ inputs.dir }}/vitest-coverage.txt"
+        junitxml-path: "${{ inputs.dir }}/junit.xml"
+    - name: Error Handling
+      if: ${{ steps.test.outcome == 'failure' }}
+      run: |
+        echo "Error handling"
+        echo ${{ steps.test.outcome }}
+        exit 1
+      shell: bash
