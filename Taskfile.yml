@@ -14,12 +14,6 @@ tasks:
     cmds:
       - task: PR:to_main
 
-  dev:PR:to_release_account:
-    desc: Create pull-request for deploying account to dev.
-    cmds:
-      - task: PR:to_release_account
-        vars: { STAGE: "dev", SUBSYSTEM: "account" }
-
   stg:PR:to_release_account:
     desc: Create pull-request for deploying account to stg.
     cmds:
