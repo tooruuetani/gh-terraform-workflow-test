@@ -1,0 +1,19 @@
+openapi: 3.0.1
+info:
+  title: TEST WebAPI
+  version: 24.05.0 # 2024年05月1回目のリリース
+paths:
+  "/":
+    get:
+      description: Hello
+      responses:
+        "200":
+          description: Hello
+      x-amazon-apigateway-integration:
+        uri: arn:aws:apigateway:${region}:lambda:path/2015-03-31/functions/arn:aws:lambda:${region}:${account_id}:function:rpf-301-${stage}:${stage}/invocations
+        responses:
+          default:
+            statusCode: "200"
+        passthroughBehavior: when_no_match
+        type: aws_proxy
+        httpMethod: POST
