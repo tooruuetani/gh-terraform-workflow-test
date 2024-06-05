@@ -1,7 +1,7 @@
 openapi: 3.0.1
 info:
   title: TEST WebAPI
-  version: 24.06.0 # 2024年05月1回目のリリース
+  version: 24.06.0 # 2024年06月1回目のリリース
 paths:
   "/":
     get:

@@ -1,0 +1,67 @@
+version: "3"
+
+tasks:
+  to_main:
+    cmds:
+      - git push --set-upstream origin {{.BRANCH}}
+      - gh pr create -w -a "@me" --base main --head {{.BRANCH}} --body "{{.BODY}}" --title "[{{.TICKET}}]"
+      - git checkout main
+      - git branch -D {{.BRANCH}}
+    vars:
+      BRANCH:
+        sh: git rev-parse --abbrev-ref HEAD
+      TICKET:
+        sh: py -c "import re; print(re.match('^.+/(\d+)$', '{{.BRANCH}}').group(1))"
+      BODY: See https://ryoden.backlog.jp/view/RPF-{{.TICKET}}
+      DESC: Pull-Request from {{.TOPIC}} to main
+    preconditions:
+      - sh: '[[ {{.BRANCH}} =~ ^(feature|fix)(/.*)*/\d+$ ]]'
+        msg: このタスクは "(feature|fix)" ブランチで実行できます。 "{{.BRANCH}}" では実行できません。
+      - sh: "[ `where gh` != '' ]"
+        msg: "Tools `GitHub CLI` is missing. Please install by `scoop install gh`."
+
+  to_release_account:
+    cmds:
+      - git checkout -b {{.PR_HEAD}}
+      - git push --set-upstream origin {{.PR_HEAD}}
+      - gh pr create -w -a "@me" --base {{.PR_BASE}} --head {{.PR_HEAD}} --title "{{.DESC}}"
+      - git checkout main
+      - git branch -D {{.PR_HEAD}}
+    vars:
+      CURRENT:
+        sh: git rev-parse --abbrev-ref HEAD
+      SHA:
+        sh: t=`git rev-parse --short HEAD`; echo ${t:0:7}
+      STAGE: '{{default "dev" .STAGE}}'
+      SUBSYSTEM: '{{default "account" .SUBSYSTEM}}'
+      PR_BASE: "release/{{.STAGE}}/{{.SUBSYSTEM}}"
+      PR_HEAD: "deploy/{{.SHA}}/{{.STAGE}}/{{.SUBSYSTEM}}"
+      DESC: "[{{.STAGE}}] Deploy Request to {{.SUBSYSTEM}} from main@{{.SHA}}"
+    preconditions:
+      - sh: "[ {{.CURRENT}} = main ]"
+        msg: このタスクは "main" ブランチで実行できます。 "{{.CURRENT}}" では実行できません。
+      - sh: "[ `where gh` != '' ]"
+        msg: "Tools `GitHub CLI` is missing. Please install by `scoop install gh`."
+
+  to_release_log:
+    cmds:
+      - git checkout -b {{.PR_HEAD}}
+      - git push --set-upstream origin {{.PR_HEAD}}
+      - gh pr create -w -a "@me" --base {{.PR_BASE}} --head {{.PR_HEAD}} --title "{{.DESC}}"
+      - git checkout main
+      - git branch -D {{.PR_HEAD}}
+    vars:
+      CURRENT:
+        sh: git rev-parse --abbrev-ref HEAD
+      SHA:
+        sh: t=`git rev-parse --short HEAD`; echo ${t:0:7}
+      STAGE: '{{default "dev" .STAGE}}'
+      SUBSYSTEM: '{{default "log" .SUBSYSTEM}}'
+      PR_BASE: "release/{{.STAGE}}/{{.SUBSYSTEM}}"
+      PR_HEAD: "deploy/{{.SHA}}/{{.STAGE}}/{{.SUBSYSTEM}}"
+      DESC: "[{{.STAGE}}] Deploy Request to {{.SUBSYSTEM}} from main@{{.SHA}}"
+    preconditions:
+      - sh: "[ {{.CURRENT}} = main ]"
+        msg: このタスクは "main" ブランチで実行できます。 "{{.CURRENT}}" では実行できません。
+      - sh: "[ `where gh` != '' ]"
+        msg: "Tools `GitHub CLI` is missing. Please install by `scoop install gh`."
