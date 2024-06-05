@@ -56,13 +56,13 @@ jobs:
       - name: Retrieve SHA from head branch name
         uses: ./.github/actions/context_to_release
         id: context
-      - name: Confirm image
-        uses: ./.github/actions/commons/ecr_confirm
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
-          repository_name: ${{ env.REPO_ACCOUNT }}
-          tag: ${{ steps.context.outputs.sha }}
+      # - name: Confirm image
+      #   uses: ./.github/actions/commons/ecr_confirm
+      #   with:
+      #     aws_region: ${{ env.AWS_REGION }}
+      #     aws_role: ${{ env.AWS_ROLE_ARN_STG }}
+      #     repository_name: ${{ env.REPO_ACCOUNT }}
+      #     tag: ${{ steps.context.outputs.sha }}
 
   account_terraform_plan_prod:
     needs:
@@ -95,13 +95,13 @@ jobs:
       - name: Retrieve SHA from head branch name
         uses: ./.github/actions/context_to_release
         id: context
-      - name: Confirm image
-        uses: ./.github/actions/commons/ecr_confirm
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
-          repository_name: ${{ env.REPO_ACCOUNT }}
-          tag: ${{ steps.context.outputs.sha }}
+      # - name: Confirm image
+      #   uses: ./.github/actions/commons/ecr_confirm
+      #   with:
+      #     aws_region: ${{ env.AWS_REGION }}
+      #     aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
+      #     repository_name: ${{ env.REPO_ACCOUNT }}
+      #     tag: ${{ steps.context.outputs.sha }}
 
   confirm_image_pushed:
     needs:
