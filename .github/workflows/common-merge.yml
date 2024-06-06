@@ -30,7 +30,7 @@ env:
   TFSTATE_BUCKET_DEV: rpf-terraform-state-dev
   TFSTATE_NAME_ACCOUNT: rpf-account.tfstate
   TFSTATE_NAME_LOG: rpf-log.tfstate
-  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf-account
+  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf_account
 
 jobs:
   changes:

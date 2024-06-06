@@ -24,7 +24,7 @@ env:
   DIR_LOG_TERRAFORM_DEV: terraform/envs/dev/log
   DIR_LOG_TERRAFORM_STG: terraform/envs/stg/log
   DIR_LOG_TERRAFORM_PROD: terraform/envs/prod/log
-  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf-account
+  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf_account
 
 jobs:
   changes:
@@ -204,9 +204,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: ignore openapi changes
-        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
-        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
       - uses: ./.github/actions/commons/terraform_install
         with:
           aws_region: ${{ env.AWS_REGION }}
@@ -227,9 +224,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: ignore openapi changes
-        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
-        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
       - uses: ./.github/actions/commons/terraform_install
         with:
           aws_region: ${{ env.AWS_REGION }}
@@ -274,6 +268,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
       - uses: ./.github/actions/commons/terraform_install
         with:
           aws_region: ${{ env.AWS_REGION }}
@@ -296,6 +293,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
       - uses: ./.github/actions/commons/terraform_install
         with:
           aws_region: ${{ env.AWS_REGION }}
