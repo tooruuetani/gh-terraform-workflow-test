@@ -1,0 +1,94 @@
+name: reusable-terraform-apply
+on:
+  workflow_call:
+    inputs:
+      aws_region:
+        type: string
+        description: AWS Region
+        default: "ap-northeast-1"
+      aws_role:
+        type: string
+        description: AWS IAM Role ARN
+        required: true
+      ignore_account_api_changes:
+        type: boolean
+        description: RPF-account の OpenAPI 定義変更を無視するかどうか
+        default: false
+      need_account:
+        type: boolean
+        description: account インフラを対象にするかどうか
+        default: false
+      need_common:
+        type: boolean
+        description: common インフラを対象にするかどうか
+        default: false
+      need_log:
+        type: boolean
+        description: log インフラを対象にするかどうか
+        default: false
+      stage:
+        type: string
+        description: ステージ名
+        required: true
+jobs:
+  common_terraform_apply:
+    if: inputs.need_common == true
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ inputs.aws_region }}
+          aws_role: ${{ inputs.aws_role }}
+          dir: terraform/envs/${{ inputs.stage }}/common
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: terraform/envs/${{ inputs.stage }}/common
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  account_terraform_apply:
+    needs:
+      - common_terraform_apply
+    if: ${{ !failure() && inputs.need_account == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: ignore openapi changes
+        if: inputs.ignore_account_api_changes == true
+        working-directory: terraform/modules/rpf_account
+        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ inputs.aws_region }}
+          aws_role: ${{ inputs.aws_role }}
+          dir: terraform/envs/${{ inputs.stage }}/account
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: terraform/envs/${{ inputs.stage }}/account
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  log_terraform_apply:
+    needs:
+      - common_terraform_apply
+    if: ${{ !failure() && inputs.need_log == 'true'}}
+    permissions: write-all
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/commons/terraform_install
+        with:
+          aws_region: ${{ inputs.aws_region }}
+          aws_role: ${{ inputs.aws_role }}
+          dir: terraform/envs/${{ inputs.stage }}/log
+          need_tfcmt: "true"
+      - uses: ./.github/actions/commons/terraform_apply
+        with:
+          dir: terraform/envs/${{ inputs.stage }}/log
+          need_tfcmt: "true"
+          token: ${{ secrets.GITHUB_TOKEN }}
