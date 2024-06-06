@@ -8,23 +8,10 @@ on:
 
 env:
   AWS_REGION: ap-northeast-1
-  AWS_ROLE_ARN_DEV: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
-  AWS_ROLE_ARN_STG: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
-  AWS_ROLE_ARN_PROD: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
-  DIR_COMMON_TERRAFORM_DEV: terraform/envs/dev/common
-  DIR_COMMON_TERRAFORM_STG: terraform/envs/stg/common
-  DIR_COMMON_TERRAFORM_PROD: terraform/envs/prod/common
   DIR_ACCOUNT_BACKEND: account/backend
   DIR_ACCOUNT_FRONTEND: account/frontend
-  DIR_ACCOUNT_TERRAFORM_DEV: terraform/envs/dev/account
-  DIR_ACCOUNT_TERRAFORM_STG: terraform/envs/stg/account
-  DIR_ACCOUNT_TERRAFORM_PROD: terraform/envs/prod/account
   DIR_LOG: log
   DIR_LOG_BACKEND: log/backend
-  DIR_LOG_TERRAFORM_DEV: terraform/envs/dev/log
-  DIR_LOG_TERRAFORM_STG: terraform/envs/stg/log
-  DIR_LOG_TERRAFORM_PROD: terraform/envs/prod/log
-  DIR_TF_MODULE_RPF_ACCOUNT: terraform/modules/rpf_account
 
 jobs:
   changes:
@@ -177,221 +164,65 @@ jobs:
           echo ${{ steps.pytest.outcome }}
           exit 1
 
-  common_terraform_plan_dev:
+  terraform_plan_dev:
     needs: [changes]
-    if: needs.changes.outputs.common_terraform_dev == 'true'
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
-          dir: ${{ env.DIR_COMMON_TERRAFORM_DEV }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_COMMON_TERRAFORM_DEV }}
-          label: "dev/common"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
+    if: |
+      ${{ needs.changes.outputs.common_terraform_dev == 'true' }} ||
+      ${{ needs.changes.outputs.account_terraform_dev == 'true' }} ||
+      ${{ needs.changes.outputs.log_terraform_dev == 'true' }}
+    uses: ./.github/workflows/reusable-terraform-plan.yml
+    with:
+      aws_region: ap-northeast-1
+      aws_role: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+      ignore_account_api_changes: false
+      need_account: ${{ needs.changes.outputs.account_terraform_dev == 'true' }}
+      need_common: ${{ needs.changes.outputs.common_terraform_dev == 'true' }}
+      need_log: ${{ needs.changes.outputs.log_terraform_dev == 'true' }}
+      stage: dev
 
-  common_terraform_plan_stg:
+  terraform_plan_stg:
     needs: [changes]
-    if: needs.changes.outputs.common_terraform_stg == 'true'
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
-          dir: ${{ env.DIR_COMMON_TERRAFORM_STG }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_COMMON_TERRAFORM_STG }}
-          label: "stg/common"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
+    if: |
+      ${{ needs.changes.outputs.common_terraform_stg == 'true' }} ||
+      ${{ needs.changes.outputs.account_terraform_stg == 'true' }} ||
+      ${{ needs.changes.outputs.log_terraform_stg == 'true' }}
+    uses: ./.github/workflows/reusable-terraform-plan.yml
+    with:
+      aws_region: ap-northeast-1
+      aws_role: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+      ignore_account_api_changes: true
+      need_account: ${{ needs.changes.outputs.account_terraform_stg == 'true' }}
+      need_common: ${{ needs.changes.outputs.common_terraform_stg == 'true' }}
+      need_log: ${{ needs.changes.outputs.log_terraform_stg == 'true' }}
+      stage: stg
 
-  common_terraform_plan_prod:
+  terraform_plan_prod:
     needs: [changes]
-    if: needs.changes.outputs.common_terraform_prod == 'true'
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
-          dir: ${{ env.DIR_COMMON_TERRAFORM_PROD }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_COMMON_TERRAFORM_PROD }}
-          label: "prod/common"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  account_terraform_plan_dev:
-    needs:
-      - changes
-      - common_terraform_plan_dev
-    if: ${{ !failure() && needs.changes.outputs.account_terraform_dev == 'true'}}
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
-          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_DEV }}
-          label: "dev/account"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  account_terraform_plan_stg:
-    needs:
-      - changes
-      - common_terraform_plan_stg
-    if: ${{ !failure() && needs.changes.outputs.account_terraform_stg == 'true'}}
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: ignore openapi changes
-        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
-        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
-          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_STG }}
-          label: "stg/account"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  account_terraform_plan_prod:
-    needs:
-      - changes
-      - common_terraform_plan_prod
-    if: ${{ !failure() && needs.changes.outputs.account_terraform_prod == 'true'}}
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: ignore openapi changes
-        working-directory: ${{ env.DIR_TF_MODULE_RPF_ACCOUNT }}
-        run: sed -i 's/# REPLACE_IF_IGNORE_OPENAPI_CHANGES/body/' main.tf
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
-          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_ACCOUNT_TERRAFORM_PROD }}
-          label: "prod/account"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  log_terraform_plan_dev:
-    needs:
-      - changes
-      - common_terraform_plan_dev
-    if: ${{ !failure() && needs.changes.outputs.log_terraform_dev == 'true'}}
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_DEV }}
-          dir: ${{ env.DIR_LOG_TERRAFORM_DEV }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_LOG_TERRAFORM_DEV }}
-          label: "dev/log"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  log_terraform_plan_stg:
-    needs:
-      - changes
-      - common_terraform_plan_stg
-    if: ${{ !failure() && needs.changes.outputs.log_terraform_stg == 'true'}}
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_STG }}
-          dir: ${{ env.DIR_LOG_TERRAFORM_STG }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_LOG_TERRAFORM_STG }}
-          label: "stg/log"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
-
-  log_terraform_plan_prod:
-    needs:
-      - changes
-      - common_terraform_plan_prod
-    if: ${{ !failure() && needs.changes.outputs.log_terraform_prod == 'true'}}
-    permissions: write-all
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ./.github/actions/commons/terraform_install
-        with:
-          aws_region: ${{ env.AWS_REGION }}
-          aws_role: ${{ env.AWS_ROLE_ARN_PROD }}
-          dir: ${{ env.DIR_LOG_TERRAFORM_PROD }}
-          need_tfcmt: "true"
-      - uses: ./.github/actions/commons/terraform_plan
-        with:
-          dir: ${{ env.DIR_LOG_TERRAFORM_PROD }}
-          label: "prod/log"
-          need_tfcmt: "true"
-          token: ${{ secrets.GITHUB_TOKEN }}
+    if: |
+      ${{ needs.changes.outputs.common_terraform_prod == 'true' }} ||
+      ${{ needs.changes.outputs.account_terraform_prod == 'true' }} ||
+      ${{ needs.changes.outputs.log_terraform_prod == 'true' }}
+    uses: ./.github/workflows/reusable-terraform-plan.yml
+    with:
+      aws_region: ap-northeast-1
+      aws_role: arn:aws:iam::082954585471:role/gha-test-infrastructure-role-dev
+      ignore_account_api_changes: true
+      need_account: ${{ needs.changes.outputs.account_terraform_prod == 'true' }}
+      need_common: ${{ needs.changes.outputs.common_terraform_prod == 'true' }}
+      need_log: ${{ needs.changes.outputs.log_terraform_prod == 'true' }}
+      stage: prod
 
   check_code:
     needs:
-      - common_terraform_plan_dev
-      - common_terraform_plan_stg
-      - common_terraform_plan_prod
-      - account_terraform_plan_dev
-      - account_terraform_plan_stg
-      - account_terraform_plan_prod
       - account_backend_lint
       - account_backend_test
       - account_frontend_lint
       - account_frontend_test
-      - log_terraform_plan_dev
-      - log_terraform_plan_stg
-      - log_terraform_plan_prod
       - log_backend_lint
       - log_backend_test
+      - terraform_plan_dev
+      - terraform_plan_stg
+      - terraform_plan_prod
     if: always()
     runs-on: ubuntu-latest
     steps:
